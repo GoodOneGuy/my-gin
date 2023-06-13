@@ -2,19 +2,35 @@ package my_gin
 
 import (
 	"net/http"
+	"strings"
 )
 
 type Engine struct {
+	*RouterGroup
 	router *router
+	groups []*RouterGroup
 }
 
 func (e *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	c := newContext(w, req)
+	var midlewares []HandlerFunc
+	for _, group := range e.groups {
+		if strings.HasPrefix(req.URL.Path, group.prefix) {
+			midlewares = append(midlewares, group.middlewares...)
+		}
+	}
+
+	c.handlers = midlewares
 	e.router.handle(c)
 }
 
 func New() *Engine {
-	return &Engine{router: newRouter()}
+	e := &Engine{router: newRouter()}
+	e.RouterGroup = &RouterGroup{
+		engine: e,
+	}
+	e.groups = []*RouterGroup{e.RouterGroup}
+	return e
 }
 
 func (e *Engine) addRoute(method string, pattern string, handler HandlerFunc) {
